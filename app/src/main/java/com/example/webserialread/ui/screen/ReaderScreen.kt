@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.webserialread.data.preferences.NavPosition
 import com.example.webserialread.data.preferences.ReaderSettings
 import com.example.webserialread.ui.viewmodel.ReaderViewModel
 import com.example.webserialread.ui.viewmodel.SettingsViewModel
@@ -32,58 +33,68 @@ fun ReaderScreen(
 ) {
     LaunchedEffect(chapterId) { vm.loadChapter(chapterId) }
 
-    val chapter by vm.chapter.collectAsStateWithLifecycle()
+    val chapter    by vm.chapter.collectAsStateWithLifecycle()
     val htmlContent by vm.htmlContent.collectAsStateWithLifecycle()
-    val loading by vm.loading.collectAsStateWithLifecycle()
-    val error by vm.error.collectAsStateWithLifecycle()
-    val prevId by vm.prevChapterId.collectAsStateWithLifecycle()
-    val nextId by vm.nextChapterId.collectAsStateWithLifecycle()
-    val settings by settingsVm.settings.collectAsStateWithLifecycle()
+    val loading    by vm.loading.collectAsStateWithLifecycle()
+    val error      by vm.error.collectAsStateWithLifecycle()
+    val prevId     by vm.prevChapterId.collectAsStateWithLifecycle()
+    val nextId     by vm.nextChapterId.collectAsStateWithLifecycle()
+    val settings   by settingsVm.settings.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        chapter?.title ?: "",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            BottomAppBar(modifier = Modifier.height(56.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+    val navAtTop = settings.navPosition == NavPosition.TOP
+
+    val navBar: @Composable () -> Unit = {
+        Surface(tonalElevation = 2.dp) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { prevId?.let { onNavigateToChapter(it) } },
+                    enabled = prevId != null
                 ) {
-                    TextButton(
-                        onClick = { prevId?.let { onNavigateToChapter(it) } },
-                        enabled = prevId != null
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Previous")
-                    }
-                    TextButton(
-                        onClick = { nextId?.let { onNavigateToChapter(it) } },
-                        enabled = nextId != null
-                    ) {
-                        Text("Next")
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = null)
-                    }
+                    Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = null)
+                    Spacer(Modifier.width(2.dp))
+                    Text("Previous")
+                }
+                TextButton(
+                    onClick = { nextId?.let { onNavigateToChapter(it) } },
+                    enabled = nextId != null
+                ) {
+                    Text("Next")
+                    Spacer(Modifier.width(2.dp))
+                    Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = null)
                 }
             }
         }
+    }
+
+    Scaffold(
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            chapter?.title ?: "",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+                if (navAtTop) navBar()
+            }
+        },
+        bottomBar = { if (!navAtTop) navBar() }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -128,8 +139,7 @@ private fun ReaderWebView(html: String, baseUrl: String?, readerSettings: Reader
     val fontSize    = readerSettings.textSizeSp.toInt()
     val webBgColor  = Color.parseColor(bgColor)
 
-    // Derive link/quote/border from whether background is dark
-    val isDark = bgColor == "#1C1C1E" || bgColor == "#000000"
+    val isDark      = bgColor == "#1C1C1E" || bgColor == "#000000"
     val linkColor   = if (isDark) "#64b5f6" else "#1565c0"
     val quoteColor  = if (isDark) "#999999" else "#555555"
     val borderColor = if (isDark) "#3a3a3c" else "#cccccc"

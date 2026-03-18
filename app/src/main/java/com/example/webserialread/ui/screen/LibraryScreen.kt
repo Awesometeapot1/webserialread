@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -26,10 +27,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.webserialread.data.local.entity.SerialEntity
@@ -42,12 +45,15 @@ import com.example.webserialread.ui.viewmodel.SerialItem
 @Composable
 fun LibraryScreen(
     onSerialClick: (Long) -> Unit,
+    onChapterClick: (Long) -> Unit = {},
     vm: LibraryViewModel = viewModel()
 ) {
     val items by vm.serialItems.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var showBrowseDialog by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<SerialEntity?>(null) }
+
+    val continueReading = remember(items) { items.filter { it.serial.lastReadChapterId != null } }
 
     Scaffold(
         topBar = {
@@ -73,26 +79,76 @@ fun LibraryScreen(
                     Text("No serials yet", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Tap + to add a WordPress serial",
+                        "Tap + to add a serial, or tap the search icon to browse",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
                     )
                 }
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+            LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                items(items, key = { it.serial.id }) { item ->
-                    SerialGridItem(
-                        item = item,
-                        onClick = { onSerialClick(item.serial.id) },
-                        onLongClick = { toDelete = item.serial }
+                // Continue Reading strip
+                if (continueReading.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Continue Reading",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(continueReading, key = { it.serial.id }) { item ->
+                                ContinueReadingCard(
+                                    item = item,
+                                    onContinue = { item.serial.lastReadChapterId?.let(onChapterClick) },
+                                    onClick = { onSerialClick(item.serial.id) }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+
+                // All serials header
+                item {
+                    Text(
+                        "All Serials",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
                     )
+                }
+
+                // 2-column grid simulation via rows
+                val rows = items.chunked(2)
+                items(rows) { row ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        row.forEach { item ->
+                            SerialGridItem(
+                                item = item,
+                                onClick = { onSerialClick(item.serial.id) },
+                                onLongClick = { toDelete = item.serial },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // fill empty slot if odd number
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
@@ -121,42 +177,108 @@ fun LibraryScreen(
     }
 }
 
+@Composable
+private fun ContinueReadingCard(item: SerialItem, onContinue: () -> Unit, onClick: () -> Unit) {
+    val bg = coverColor(item.serial.title)
+    Card(
+        onClick = onClick,
+        modifier = Modifier.width(140.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(0.7f)) {
+            // Cover image or colour placeholder
+            Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
+                if (item.serial.siteIconUrl != null) {
+                    AsyncImage(
+                        model = item.serial.siteIconUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = item.serial.title.take(2).uppercase(),
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.25f)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.8f))))
+            )
+            Column(
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+            ) {
+                Text(
+                    item.serial.title,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(6.dp))
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Continue", fontSize = 10.sp)
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SerialGridItem(item: SerialItem, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun SerialGridItem(
+    item: SerialItem,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val bg = coverColor(item.serial.title)
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .aspectRatio(0.65f)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
-        // Colored cover background
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(bg),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = item.serial.title.take(2).uppercase(),
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.25f)
-            )
+        // Cover image or colour placeholder
+        Box(Modifier.fillMaxSize().background(bg), contentAlignment = Alignment.Center) {
+            if (item.serial.siteIconUrl != null) {
+                AsyncImage(
+                    model = item.serial.siteIconUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    text = item.serial.title.take(2).uppercase(),
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.25f)
+                )
+            }
         }
 
         // Gradient overlay + title at bottom
         Box(
             modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
+        )
+
+        Box(
+            modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                    )
-                )
                 .padding(8.dp)
         ) {
             Text(

@@ -52,13 +52,16 @@ class SerialRepository(
             }.getOrNull()
         }
 
+        val ogImage = site?.siteIconUrl
+            ?: runCatching { TocScraper.scrapeOgImage(baseUrl) }.getOrNull()
+
         val entity = SerialEntity(
             title = site?.name ?: fallbackTitle,
             siteUrl = baseUrl,
             tocUrl = tocUrl?.ifBlank { null },
             wpCategorySlug = wpCategorySlug,
             description = site?.description ?: "",
-            siteIconUrl = site?.siteIconUrl
+            siteIconUrl = ogImage
         )
 
         val postsUrl = postsApiUrl(baseUrl)
@@ -85,7 +88,10 @@ class SerialRepository(
                         "Re-add the serial and paste its Table of Contents URL in the optional field.")
             }
 
-            val scrapedEntity = entity.copy(title = scraped.title)
+            val scrapedEntity = entity.copy(
+                title = scraped.title,
+                siteIconUrl = ogImage ?: runCatching { TocScraper.scrapeOgImage(baseUrl) }.getOrNull()
+            )
             val id = serialDao.insert(scrapedEntity)
             chapterDao.insertAll(scraped.chapters.mapIndexed { index, ch ->
                 ChapterEntity(

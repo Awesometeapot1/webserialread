@@ -13,8 +13,14 @@ enum class ReaderFont(val label: String, val css: String) {
     MONO   ("Monospace",  "'Courier New', Courier, monospace"),
 }
 
+enum class NavPosition(val label: String) {
+    TOP("Top"),
+    BOTTOM("Bottom"),
+}
+
 data class ReaderSettings(
     val textSizeSp: Float = 18f,
     val font: ReaderFont = ReaderFont.SERIF,
-    val background: ReaderBackground = ReaderBackground.WHITE
+    val background: ReaderBackground = ReaderBackground.WHITE,
+    val navPosition: NavPosition = NavPosition.BOTTOM,
 )

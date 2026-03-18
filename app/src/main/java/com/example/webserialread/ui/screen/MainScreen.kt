@@ -55,7 +55,7 @@ fun MainScreen(
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                Tab.Library   -> LibraryScreen(onSerialClick = onSerialClick)
+                Tab.Library   -> LibraryScreen(onSerialClick = onSerialClick, onChapterClick = onChapterClick)
                 Tab.Updates   -> UpdatesScreen(onSerialClick = onSerialClick)
                 Tab.History   -> HistoryScreen(onChapterClick = onChapterClick)
                 Tab.Settings  -> SettingsScreen()

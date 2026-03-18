@@ -20,14 +20,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.webserialread.data.preferences.NavPosition
 import com.example.webserialread.data.preferences.ReaderBackground
 import com.example.webserialread.data.preferences.ReaderFont
+import com.example.webserialread.ui.theme.AccentColor
+import com.example.webserialread.ui.theme.ThemeMode
 import com.example.webserialread.ui.viewmodel.SettingsViewModel
+
+// Accent colour dot sizes
+private val SWATCH_SIZE = 44.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
-    val settings by vm.settings.collectAsStateWithLifecycle()
+    val settings    by vm.settings.collectAsStateWithLifecycle()
+    val themeMode   by vm.themeMode.collectAsStateWithLifecycle()
+    val accentColor by vm.accentColor.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -42,6 +50,68 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            // ── App Theme ─────────────────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "App Theme",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = { vm.setThemeMode(mode) },
+                            label = { Text(mode.label) }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // ── Accent Colour ─────────────────────────────────────────────
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Accent Colour",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    AccentColor.entries.forEach { accent ->
+                        val selected = accentColor == accent
+                        val swatchColor = accentSwatchColor(accent)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(SWATCH_SIZE)
+                                    .clip(CircleShape)
+                                    .background(swatchColor)
+                                    .then(
+                                        if (selected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                        else Modifier.border(1.dp, Color.Gray, CircleShape)
+                                    )
+                                    .clickable { vm.setAccentColor(accent) }
+                            )
+                            Text(
+                                accent.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
             // Text Size
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -146,6 +216,31 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
 
             HorizontalDivider()
 
+            // Navigation button position
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Chapter Navigation",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "Position of Previous / Next buttons in the reader",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NavPosition.entries.forEach { pos ->
+                        FilterChip(
+                            selected = settings.navPosition == pos,
+                            onClick = { vm.setNavPosition(pos) },
+                            label = { Text(pos.label) }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
             // Preview
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -180,4 +275,15 @@ fun SettingsScreen(vm: SettingsViewModel = viewModel()) {
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+@Composable
+private fun accentSwatchColor(accent: AccentColor): Color = when (accent) {
+    AccentColor.DYNAMIC -> MaterialTheme.colorScheme.primary   // reflects current dynamic colour
+    AccentColor.PURPLE  -> Color(0xFF6650A4)
+    AccentColor.TEAL    -> Color(0xFF006A60)
+    AccentColor.AMBER   -> Color(0xFF7B5200)
+    AccentColor.ROSE    -> Color(0xFF9C3B6B)
+    AccentColor.FOREST  -> Color(0xFF326B25)
+    AccentColor.NAVY    -> Color(0xFF0D5EA0)
 }

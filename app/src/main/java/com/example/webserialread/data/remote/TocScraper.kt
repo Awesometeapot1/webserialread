@@ -182,6 +182,23 @@ object TocScraper {
 
     fun isScrapedId(id: Long) = id < 0
 
+    /**
+     * Tries to find a cover/banner image for the site by checking:
+     * 1. og:image meta tag (most reliable — set by most WordPress themes)
+     * 2. twitter:image meta tag
+     * 3. apple-touch-icon link
+     * Returns an absolute image URL or null.
+     */
+    fun scrapeOgImage(siteUrl: String): String? = runCatching {
+        val doc = fetchDoc(siteUrl) ?: return null
+        val baseUri = doc.baseUri().ifBlank { siteUrl }
+
+        // og:image
+        doc.selectFirst("meta[property=og:image]")?.attr("abs:content")?.takeIf { it.isNotBlank() }
+            ?: doc.selectFirst("meta[name=twitter:image]")?.attr("abs:content")?.takeIf { it.isNotBlank() }
+            ?: doc.selectFirst("link[rel=apple-touch-icon]")?.attr("abs:href")?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
     private fun normalizeHost(host: String) = host.removePrefix("www.")
 
     private const val USER_AGENT =
