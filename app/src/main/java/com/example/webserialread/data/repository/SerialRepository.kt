@@ -5,6 +5,7 @@ import com.example.webserialread.data.local.ChapterDao
 import com.example.webserialread.data.local.SerialDao
 import com.example.webserialread.data.local.entity.ChapterEntity
 import com.example.webserialread.data.local.entity.SerialEntity
+import com.example.webserialread.data.remote.SonicMtlScraper
 import com.example.webserialread.data.remote.TocScraper
 import com.example.webserialread.data.remote.WebViewScraper
 import com.example.webserialread.data.remote.categoriesApiUrl
@@ -39,6 +40,30 @@ class SerialRepository(
         wpCategorySlug: String? = null
     ): Result<Long> = runCatching {
         val baseUrl = normalizeUrl(rawUrl)
+
+        // ── sonicmtl.com fast path ────────────────────────────────────────────
+        if (SonicMtlScraper.isSonicMtl(baseUrl)) {
+            val scraped = SonicMtlScraper.scrapeNovel(context, baseUrl)
+                ?: error(
+                    "Could not load the novel from sonicmtl.com.\n" +
+                    "Make sure the URL points to the novel page, e.g.:\n" +
+                    "sonicmtl.com/novel/your-novel-name/"
+                )
+            val id = serialDao.insert(
+                SerialEntity(
+                    title = scraped.title,
+                    siteUrl = baseUrl,
+                    description = "",
+                    siteIconUrl = scraped.coverUrl
+                )
+            )
+            chapterDao.insertAll(scraped.chapters.mapIndexed { index, ch ->
+                ChapterEntity(id = ch.id, serialId = id, title = ch.title,
+                    url = ch.url, publishedAt = index.toLong())
+            })
+            return@runCatching id
+        }
+
         val api = createWordPressApi(baseUrl)
 
         val site = runCatching { api.getSiteInfo() }.getOrNull()
@@ -121,6 +146,18 @@ class SerialRepository(
     }
 
     suspend fun syncChapters(serial: SerialEntity) {
+        // ── sonicmtl.com ─────────────────────────────────────────────────────
+        if (SonicMtlScraper.isSonicMtl(serial.siteUrl)) {
+            val scraped = SonicMtlScraper.scrapeNovel(context, serial.siteUrl) ?: return
+            val existing = chapterDao.getChaptersSnapshot(serial.id).map { it.url }.toSet()
+            val newChapters = scraped.chapters.filter { it.url !in existing }
+            chapterDao.insertAll(newChapters.mapIndexed { index, ch ->
+                ChapterEntity(id = ch.id, serialId = serial.id, title = ch.title,
+                    url = ch.url, publishedAt = System.currentTimeMillis() + index)
+            })
+            return
+        }
+
         val api = createWordPressApi(serial.siteUrl)
         val postsUrl = postsApiUrl(serial.siteUrl)
 
@@ -170,15 +207,18 @@ class SerialRepository(
     }
 
     suspend fun fetchChapterContent(chapter: ChapterEntity): String {
-        val html = if (TocScraper.isScrapedId(chapter.id)) {
-            // Scraped chapter — fetch content directly from the chapter URL
-            TocScraper.scrapeContent(chapter.url)
-        } else {
-            val serial = serialDao.getSerialById(chapter.serialId)
-                ?: error("Serial not found for chapter ${chapter.id}")
-            val api = createWordPressApi(serial.siteUrl)
-            val post = api.getPost(url = postApiUrl(serial.siteUrl, chapter.id))
-            post.content?.rendered ?: ""
+        val html = when {
+            SonicMtlScraper.isSonicMtl(chapter.url) ->
+                SonicMtlScraper.scrapeContent(chapter.url)
+            TocScraper.isScrapedId(chapter.id) ->
+                TocScraper.scrapeContent(chapter.url)
+            else -> {
+                val serial = serialDao.getSerialById(chapter.serialId)
+                    ?: error("Serial not found for chapter ${chapter.id}")
+                val api = createWordPressApi(serial.siteUrl)
+                val post = api.getPost(url = postApiUrl(serial.siteUrl, chapter.id))
+                post.content?.rendered ?: ""
+            }
         }
         chapterDao.updateContent(chapter.id, html)
         return html

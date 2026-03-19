@@ -206,5 +206,9 @@ object TocScraper {
         "Chrome/120.0.0.0 Mobile Safari/537.36"
 }
 
-data class ScrapeResult(val title: String, val chapters: List<ScrapedChapter>)
+data class ScrapeResult(
+    val title: String,
+    val chapters: List<ScrapedChapter>,
+    val coverUrl: String? = null
+)
 data class ScrapedChapter(val id: Long, val title: String, val url: String)
